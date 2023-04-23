@@ -29,7 +29,7 @@ from   scipy.special import logsumexp
 
 # -----------------------------------------------------------------------------
 
-def bocd(data, model, hazard):
+def bocd(data, model, hazard,cps):
     """Return run length posterior using Algorithm 1 in Adams & MacKay 2007.
     """
     # 1. Initialize lower triangular matrix representing the posterior as
@@ -60,16 +60,32 @@ def bocd(data, model, hazard):
 
         # 4. Calculate growth probabilities.
         log_growth_probs = log_pis + log_message + log_1mH
+        if t==cps[0]:
+            print(f't:{t} log_growth:{log_growth_probs}')
 
         # 5. Calculate changepoint probabilities.
         log_cp_prob = logsumexp(log_pis + log_message + log_H)
 
+        if t==cps[0]:
+            print(f't:{t} log_cp_prob:{log_cp_prob}')
+
         # 6. Calculate evidence
         new_log_joint = np.append(log_cp_prob, log_growth_probs)
+
+        if t==cps[0]:
+            print(f't:{t} new_log_joint:{new_log_joint}')
+
 
         # 7. Determine run length distribution.
         log_R[t, :t+1]  = new_log_joint
         log_R[t, :t+1] -= logsumexp(new_log_joint)
+        check_posterior = np.exp(log_R[t, :t+1])
+        if t==cps[0]:
+            print(f't:{t} check_posterior:{check_posterior}')
+        
+        if check_posterior[0]>0.6:
+            print(f'check: check_posterior:{check_posterior}')
+
 
         # 8. Update sufficient statistics.
         model.update_params(t, x)
@@ -140,6 +156,7 @@ def generate_data(varx, mean0, var0, T, cp_prob):
             meanx = np.random.normal(mean0, var0)
             cps.append(t)
         data.append(np.random.normal(meanx, varx))
+    print(f'cps:{cps}')
     return data, cps
 
 
@@ -185,6 +202,8 @@ if __name__ == '__main__':
 
     data, cps      = generate_data(varx, mean0, var0, T, hazard)
     model          = GaussianUnknownMean(mean0, var0, varx)
-    R, pmean, pvar = bocd(data, model, hazard)
+    R, pmean, pvar = bocd(data, model, hazard ,cps)
+
+    np.savetxt('R.csv', R)
 
     plot_posterior(T, data, cps, R, pmean, pvar)
