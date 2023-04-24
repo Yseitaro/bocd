@@ -46,6 +46,7 @@ def bocd(data, model, hazard,cps):
     log_message = np.array([0])  # log 0 == 1
     log_H       = np.log(hazard)
     log_1mH     = np.log(1 - hazard)
+    point = []
 
     for t in range(1, T+1):
         # 2. Observe new datum.
@@ -80,6 +81,7 @@ def bocd(data, model, hazard,cps):
         log_R[t, :t+1]  = new_log_joint
         log_R[t, :t+1] -= logsumexp(new_log_joint)
         check_posterior = np.exp(log_R[t, :t+1])
+        point.append(np.argmax(check_posterior))
         if t==cps[0]:
             print(f't:{t} check_posterior:{check_posterior}')
         
@@ -94,7 +96,7 @@ def bocd(data, model, hazard,cps):
         log_message = new_log_joint
 
     R = np.exp(log_R)
-    return R, pmean, pvar
+    return R, pmean, pvar,point
 
 
 # -----------------------------------------------------------------------------
@@ -194,16 +196,23 @@ def plot_posterior(T, data, cps, R, pmean, pvar):
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    T      = 1000   # Number of observations.
-    hazard = 1/100  # Constant prior on changepoint probability.
+    T      = 25000   # Number of observations.
+    hazard = 1/4500  # Constant prior on changepoint probability.
     mean0  = 0      # The prior mean on the mean parameter.
     var0   = 2      # The prior variance for mean parameter.
     varx   = 1      # The known variance of the data.
 
     data, cps      = generate_data(varx, mean0, var0, T, hazard)
     model          = GaussianUnknownMean(mean0, var0, varx)
-    R, pmean, pvar = bocd(data, model, hazard ,cps)
+    R, pmean, pvar ,point= bocd(data, model, hazard ,cps)
 
     np.savetxt('R.csv', R)
+    print(f'cps:{cps}')
+    print(f'point:{point}')
+    fig, axes = plt.subplots(1, 1, figsize=(20,10))
+
+    axes.plot(point)
+
+    plt.show()
 
     plot_posterior(T, data, cps, R, pmean, pvar)
