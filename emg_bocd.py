@@ -39,8 +39,9 @@ def bocd(data, model, hazard,cps):
     #    visualization.
     #
     T           = len(data)
-    # log_R       = -np.inf * np.ones((T+1, T+1))
-    # log_R[0, 0] = 0              # log 0 == 1
+    log_R       = -np.inf * np.ones((T+1, T+1))
+    log_R[0, 0] = 0              # log 0 == 1
+    # log_R = np.array([0])
     pmean       = np.empty(T)    # Model's predictive mean.
     pvar        = np.empty(T)    # Model's predictive variance. 
     log_message = np.array([0])  # log 0 == 1
@@ -61,33 +62,23 @@ def bocd(data, model, hazard,cps):
 
         # 4. Calculate growth probabilities.
         log_growth_probs = log_pis + log_message + log_1mH
-        if t==cps[0]:
-            print(f't:{t} log_growth:{log_growth_probs}')
 
         # 5. Calculate changepoint probabilities.
         log_cp_prob = logsumexp(log_pis + log_message + log_H)
 
-        if t==cps[0]:
-            print(f't:{t} log_cp_prob:{log_cp_prob}')
-
         # 6. Calculate evidence
         new_log_joint = np.append(log_cp_prob, log_growth_probs)
 
-        if t==cps[0]:
-            print(f't:{t} new_log_joint:{new_log_joint}')
-
 
         # 7. Determine run length distribution.
+        # log_R = new_log_joint - logsumexp(new_log_joint)
+        
+        # point.append(np.argmax(check_posterior))
+
         log_R[t, :t+1]  = new_log_joint
         log_R[t, :t+1] -= logsumexp(new_log_joint)
         check_posterior = np.exp(log_R[t, :t+1])
         point.append(np.argmax(check_posterior))
-        if t==cps[0]:
-            print(f't:{t} check_posterior:{check_posterior}')
-        
-        if check_posterior[0]>0.6:
-            print(f'check: check_posterior:{check_posterior}')
-
 
         # 8. Update sufficient statistics.
         model.update_params(t, x)
@@ -106,7 +97,6 @@ class GaussianUnknownMean:
     
     def __init__(self, mean0, var0, varx):
         """Initialize model.
-        
         meanx is unknown; varx is known
         p(meanx) = N(mean0, var0)
         p(x) = N(meanx, varx)
@@ -158,7 +148,7 @@ def generate_data(varx, mean0, var0, T, cp_prob):
             meanx = np.random.normal(mean0, var0)
             cps.append(t)
         data.append(np.random.normal(meanx, varx))
-    print(f'cps:{cps}')
+    # print(f'cps:{cps}')
     return data, cps
 
 
@@ -198,7 +188,7 @@ def plot_posterior(T, data, cps, R, pmean, pvar):
 if __name__ == '__main__':
     T      = 25000   # Number of observations.
     hazard = 1/4500  # Constant prior on changepoint probability.
-    mean0  = 0      # The prior mean on the mean parameter.
+    mean0  = np.zeros(4)      # The prior mean on the mean parameter.
     var0   = 2      # The prior variance for mean parameter.
     varx   = 1      # The known variance of the data.
 
@@ -206,13 +196,13 @@ if __name__ == '__main__':
     model          = GaussianUnknownMean(mean0, var0, varx)
     R, pmean, pvar ,point= bocd(data, model, hazard ,cps)
 
-    np.savetxt('R.csv', R)
-    print(f'cps:{cps}')
-    print(f'point:{point}')
+    # np.savetxt('R.csv', R)
+    # print(f'cps:{cps}')
+    # print(f'point:{point}')
     fig, axes = plt.subplots(1, 1, figsize=(20,10))
 
     axes.plot(point)
 
     plt.show()
 
-    plot_posterior(T, data, cps, R, pmean, pvar)
+    # plot_posterior(T, data, cps, R, pmean, pvar)

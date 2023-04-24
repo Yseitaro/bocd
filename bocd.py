@@ -53,8 +53,8 @@ def bocd(data, model, hazard,cps):
         x = data[t-1]
 
         # Make model predictions.
-        pmean[t-1] = np.sum(np.exp(log_R[t-1, :t]) * model.mean_params[:t])
-        pvar[t-1]  = np.sum(np.exp(log_R[t-1, :t]) * model.var_params[:t])
+        # pmean[t-1] = np.sum(np.exp(log_R[t-1, :t]) * model.mean_params[:t])
+        # pvar[t-1]  = np.sum(np.exp(log_R[t-1, :t]) * model.var_params[:t])
         
         # 3. Evaluate predictive probabilities.
         log_pis = model.log_pred_prob(t, x)
@@ -189,15 +189,15 @@ def plot_posterior(T, data, cps, R, pmean, pvar):
         ax1.axvline(cp, c='red', ls='dotted')
         ax2.axvline(cp, c='red', ls='dotted')
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
 
 
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    T      = 25000   # Number of observations.
-    hazard = 1/4500  # Constant prior on changepoint probability.
+    T      = 1000   # Number of observations.
+    hazard = 1/100  # Constant prior on changepoint probability.
     mean0  = 0      # The prior mean on the mean parameter.
     var0   = 2      # The prior variance for mean parameter.
     varx   = 1      # The known variance of the data.
@@ -213,6 +213,7 @@ if __name__ == '__main__':
 
     axes.plot(point)
 
-    plt.show()
+    
+    plt.savefig('./changepoint.jpg')
 
     plot_posterior(T, data, cps, R, pmean, pvar)
