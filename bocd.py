@@ -25,6 +25,7 @@ from   matplotlib.colors import LogNorm
 import numpy as np
 from   scipy.stats import norm
 from   scipy.special import logsumexp
+from scipy.stats import multivariate_normal
 
 
 # -----------------------------------------------------------------------------
@@ -122,9 +123,12 @@ class GaussianUnknownMean:
         for each run length hypothesis.
         """
         # Posterior predictive: see eq. 40 in (Murphy 2007).
-        post_means = self.mean_params[:t]
-        post_stds  = np.sqrt(self.var_params[:t])
-        return norm(post_means, post_stds).logpdf(x)
+        p_val = []
+        for i in range(t):
+            post_stds  = np.sqrt(self.var_params[i])
+            p_val.append(multivariate_normal(self.mean_params[i],post_stds).logpdf(x))
+        
+        return p_val
     
     def update_params(self, t, x):
         """Upon observing a new datum x at time t, update all run length 
@@ -132,10 +136,11 @@ class GaussianUnknownMean:
         """
         # See eq. 19 in (Murphy 2007).
         new_prec_params  = self.prec_params + (1/self.varx)
-        self.prec_params = np.append([1/self.var0], new_prec_params)
+        self.prec_params = np.vstack(1/self.var0, new_prec_params)
         # See eq. 24 in (Murphy 2007).
         new_mean_params  = (self.mean_params * self.prec_params[:-1] + \
                             (x / self.varx)) / new_prec_params
+        
         self.mean_params = np.append([self.mean0], new_mean_params)
 
     @property

@@ -25,8 +25,9 @@ from   matplotlib.colors import LogNorm
 import numpy as np
 from   scipy.stats import norm
 from   scipy.special import logsumexp
+from scipy.stats import multivariate_normal
 
-
+import numpy.linalg as LA
 # -----------------------------------------------------------------------------
 
 def bocd(data, model, hazard,cps):
@@ -103,36 +104,55 @@ class GaussianUnknownMean:
         """
         self.mean0 = mean0
         self.var0  = var0
+        # 精度行列とする
         self.varx  = varx
         self.mean_params = np.array([mean0])
-        self.prec_params = np.array([1/var0])
+        self.prec_params = np.array([var0])
     
     def log_pred_prob(self, t, x):
-        """Compute predictive probabilities \pi, i.e. the posterior predictive
-        for each run length hypothesis.
-        """
+        # x=t の時のそれぞれの事後分布を求めている　0<= t <= l
         # Posterior predictive: see eq. 40 in (Murphy 2007).
-        post_means = self.mean_params[:t]
-        post_stds  = np.sqrt(self.var_params[:t])
-        return norm(post_means, post_stds).logpdf(x)
+        p_val = []
+        for i in range(t):
+            post_stds  = np.sqrt(np.linalg.inv(self.prec_params[i]))
+            print(self.prec_params[i])
+            print(self.mean_params[i])
+            p_val.append(multivariate_normal(self.mean_params[i],post_stds).logpdf(x))
+        
+        return p_val
     
     def update_params(self, t, x):
         """Upon observing a new datum x at time t, update all run length 
         hypotheses.
         """
-        # See eq. 19 in (Murphy 2007).
-        new_prec_params  = self.prec_params + (1/self.varx)
-        self.prec_params = np.append([1/self.var0], new_prec_params)
-        # See eq. 24 in (Murphy 2007).
-        new_mean_params  = (self.mean_params * self.prec_params[:-1] + \
-                            (x / self.varx)) / new_prec_params
-        self.mean_params = np.append([self.mean0], new_mean_params)
 
-    @property
-    def var_params(self):
-        """Helper function for computing the posterior variance.
-        """
-        return 1./self.prec_params + self.varx
+        # See eq. 19 in (Murphy 2007).
+        new_prec_params = self.prec_params + self.varx
+        print(f'self.varx:{self.varx}')
+        print(f'new_prec_params:{new_prec_params}')
+        self.prec_params = np.vstack((self.varx, new_prec_params))
+        
+        # See eq. 24 in (Murphy 2007).
+        tmp_mean_params = np.array([0,0])
+        for i in range(len(self.prec_params)-1):
+       
+            inner = np.dot(self.prec_params[i],self.mean_params[i])+np.dot(self.varx,x)
+            print(f'np.dot(self.varx,x):{np.dot(self.varx,x)}')
+            print(f'np.dot(self.prec_params[i],self.mean_params[i]):{np.dot(self.prec_params[i],self.mean_params[i])}')
+            answer = np.dot(np.linalg.inv(self.prec_params[i+1]),inner)
+            tmp_mean_params = np.vstack((tmp_mean_params,answer))
+
+        self.mean_params  = np.vstack((self.mean0,tmp_mean_params[1:]))
+
+        # new_mean_params  = (self.mean_params * self.prec_params[:-1] + \
+        #                     (x / self.varx)) / new_prec_params
+        # self.mean_params = np.append([self.mean0], new_mean_params)
+
+    # @property
+    # def var_params(self):
+    #     """Helper function for computing the posterior variance.
+    #     """
+    #     return 1./self.prec_params + self.varx
 
 # -----------------------------------------------------------------------------
 
@@ -140,14 +160,15 @@ def generate_data(varx, mean0, var0, T, cp_prob):
     """Generate partitioned data of T observations according to constant
     changepoint probability `cp_prob` with hyperpriors `mean0` and `prec0`.
     """
-    data  = []
+    data  = np.array([0,0])
     cps   = []
     meanx = mean0
     for t in range(0, T):
         if np.random.random() < cp_prob:
-            meanx = np.random.normal(mean0, var0)
+            meanx = np.random.multivariate_normal(mean0, np.linalg.inv(var0))
             cps.append(t)
-        data.append(np.random.normal(meanx, varx))
+        data = np.vstack((data,np.random.multivariate_normal(meanx,  np.linalg.inv(varx))))
+    data = data[1:]
     # print(f'cps:{cps}')
     return data, cps
 
@@ -186,11 +207,11 @@ def plot_posterior(T, data, cps, R, pmean, pvar):
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    T      = 25000   # Number of observations.
-    hazard = 1/4500  # Constant prior on changepoint probability.
-    mean0  = np.zeros(4)      # The prior mean on the mean parameter.
-    var0   = 2      # The prior variance for mean parameter.
-    varx   = 1      # The known variance of the data.
+    T      = 1000   # Number of observations.
+    hazard = 1/100  # Constant prior on changepoint probability.
+    mean0  = np.zeros(2)      # The prior mean on the mean parameter.
+    var0   = np.identity(2)     # The prior variance for mean parameter.
+    varx   = np.identity(2)      # The known variance of the data.
 
     data, cps      = generate_data(varx, mean0, var0, T, hazard)
     model          = GaussianUnknownMean(mean0, var0, varx)
